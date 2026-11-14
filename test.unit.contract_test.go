@@ -27,6 +27,7 @@ func TestHelloResponseValidate(t *testing.T) {
 				Kind:            KindPlugin,
 				ContractVersion: ContractVersion,
 				DependsOn:       []string{"messenger", "registry"},
+				Definitions:     DescribePlugin("ESPHome", "Discovers ESPHome devices."),
 			},
 		},
 		{
