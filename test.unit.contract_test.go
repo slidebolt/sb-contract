@@ -75,3 +75,29 @@ func TestWriteAndReadJSON(t *testing.T) {
 		t.Errorf("got type %q, want %q", got.Type, RuntimeReady)
 	}
 }
+
+func TestSetupDefinitionValidate(t *testing.T) {
+	setup := SelectableSetup("Media",
+		SetupField{Key: "url", Environment: "SERVER_URL", Name: "Server URL", Control: SetupText, Format: "url", Required: true},
+		SetupField{Key: "password", Environment: "SERVER_PASSWORD", Name: "Password", Control: SetupSecret, Sensitive: true},
+		SetupField{Key: "profile", Environment: "PROFILE", Name: "Profile", Control: SetupSelect, Default: json.RawMessage(`"portable"`), Options: []SetupOption{{Value: "portable", Label: "Portable"}}},
+	)
+	setup.Constraints = []SetupConstraint{{Kind: "all_or_none", Fields: []string{"url", "password"}}}
+	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Environment: "FFMPEG_PATH", Required: true}}
+	if err := setup.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	bad := *setup
+	bad.Fields = append(append([]SetupField(nil), setup.Fields...), SetupField{Key: "token", Name: "Token", Control: SetupSecret})
+	if err := bad.Validate(); err == nil {
+		t.Fatal("expected an unmarked secret to fail validation")
+	}
+}
+
+func TestHelloResponseRejectsInvalidSetup(t *testing.T) {
+	resp := HelloResponse{ID: "plugin", Kind: KindPlugin, ContractVersion: ContractVersion, Definitions: DescribePlugin("Plugin", "A plugin."), Setup: &SetupDefinition{Mode: SetupSelectable}}
+	if err := resp.Validate(); err == nil {
+		t.Fatal("expected invalid setup to fail hello validation")
+	}
+}

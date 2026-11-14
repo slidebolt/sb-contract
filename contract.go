@@ -37,6 +37,7 @@ type HelloResponse struct {
 	ContractVersion int                `json:"contractVersion"`
 	DependsOn       []string           `json:"dependsOn,omitempty"`
 	Definitions     *PluginDefinitions `json:"definitions,omitempty"`
+	Setup           *SetupDefinition   `json:"setup,omitempty"`
 }
 
 // PluginDefinitions is executable, serialized documentation supplied by a
@@ -93,6 +94,11 @@ func (h *HelloResponse) Validate() error {
 	}
 	if h.ContractVersion != ContractVersion {
 		return fmt.Errorf("hello: unsupported contractVersion %d (want %d)", h.ContractVersion, ContractVersion)
+	}
+	if h.Setup != nil {
+		if err := h.Setup.Validate(); err != nil {
+			return fmt.Errorf("hello: setup: %w", err)
+		}
 	}
 	if h.Kind == KindPlugin {
 		if h.Definitions == nil {
