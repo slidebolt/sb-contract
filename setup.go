@@ -53,10 +53,33 @@ type SetupConstraint struct {
 	Fields []string `json:"fields"`
 }
 
+type ToolSource string
+
+const ToolSourceSystem ToolSource = "system"
+
+type ToolKind string
+
+const (
+	ToolKindExecutable ToolKind = "executable"
+	ToolKindFile       ToolKind = "file"
+)
+
+type ToolCheck struct {
+	Arguments []string `json:"arguments,omitempty"`
+	Contains  []string `json:"contains,omitempty"`
+}
+
 type ToolRequirement struct {
-	ID          string `json:"id"`
-	Environment string `json:"environment,omitempty"`
-	Required    bool   `json:"required,omitempty"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	Source      ToolSource  `json:"source"`
+	Kind        ToolKind    `json:"kind"`
+	Environment string      `json:"environment,omitempty"`
+	Default     string      `json:"default,omitempty"`
+	Required    bool        `json:"required,omitempty"`
+	InstallHint string      `json:"installHint,omitempty"`
+	Checks      []ToolCheck `json:"checks,omitempty"`
 }
 
 type SetupDefinition struct {
@@ -160,8 +183,8 @@ func (s *SetupDefinition) Validate() error {
 	}
 	tools := map[string]struct{}{}
 	for _, tool := range s.Tools {
-		if tool.ID == "" {
-			return fmt.Errorf("tool id is required")
+		if tool.ID == "" || tool.Name == "" {
+			return fmt.Errorf("tool id and name are required")
 		}
 		if _, exists := tools[tool.ID]; exists {
 			return fmt.Errorf("duplicate tool %q", tool.ID)
@@ -169,6 +192,33 @@ func (s *SetupDefinition) Validate() error {
 		tools[tool.ID] = struct{}{}
 		if tool.Environment != "" && !environmentName.MatchString(tool.Environment) {
 			return fmt.Errorf("tool %q has invalid environment %q", tool.ID, tool.Environment)
+		}
+		if tool.Source != ToolSourceSystem {
+			return fmt.Errorf("tool %q has invalid source %q", tool.ID, tool.Source)
+		}
+		if tool.Kind != ToolKindExecutable && tool.Kind != ToolKindFile {
+			return fmt.Errorf("tool %q has invalid kind %q", tool.ID, tool.Kind)
+		}
+		if tool.Kind == ToolKindExecutable && tool.Required && len(tool.Checks) == 0 {
+			return fmt.Errorf("required tool %q must define checks", tool.ID)
+		}
+		if tool.Kind == ToolKindFile && len(tool.Checks) != 0 {
+			return fmt.Errorf("file tool %q cannot define executable checks", tool.ID)
+		}
+		for i, check := range tool.Checks {
+			if len(check.Arguments) == 0 {
+				return fmt.Errorf("tool %q check %d requires arguments", tool.ID, i)
+			}
+			for _, argument := range check.Arguments {
+				if argument == "" {
+					return fmt.Errorf("tool %q check %d has an empty argument", tool.ID, i)
+				}
+			}
+			for _, expected := range check.Contains {
+				if expected == "" {
+					return fmt.Errorf("tool %q check %d has an empty output match", tool.ID, i)
+				}
+			}
 		}
 	}
 	return nil

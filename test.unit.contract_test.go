@@ -83,7 +83,7 @@ func TestSetupDefinitionValidate(t *testing.T) {
 		SetupField{Key: "profile", Environment: "PROFILE", Name: "Profile", Control: SetupSelect, Default: json.RawMessage(`"portable"`), Options: []SetupOption{{Value: "portable", Label: "Portable"}}},
 	)
 	setup.Constraints = []SetupConstraint{{Kind: "all_or_none", Fields: []string{"url", "password"}}}
-	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Environment: "FFMPEG_PATH", Required: true}}
+	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Name: "FFmpeg", Source: ToolSourceSystem, Kind: ToolKindExecutable, Environment: "FFMPEG_PATH", Required: true, Checks: []ToolCheck{{Arguments: []string{"-version"}, Contains: []string{"ffmpeg version"}}}}}
 	setup.Fields = append(setup.Fields, SetupField{Key: "port", Environment: "PORT", Name: "Port", Control: SetupText, Generate: "free_port", Advanced: true})
 	if err := setup.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
@@ -93,6 +93,19 @@ func TestSetupDefinitionValidate(t *testing.T) {
 	bad.Fields = append(append([]SetupField(nil), setup.Fields...), SetupField{Key: "token", Name: "Token", Control: SetupSecret})
 	if err := bad.Validate(); err == nil {
 		t.Fatal("expected an unmarked secret to fail validation")
+	}
+}
+
+func TestSetupDefinitionRejectsInvalidTool(t *testing.T) {
+	setup := RequiredSetup("Core")
+	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Name: "FFmpeg", Source: ToolSourceSystem, Kind: ToolKindExecutable, Required: true}}
+	if err := setup.Validate(); err == nil {
+		t.Fatal("expected required tool without checks to fail validation")
+	}
+	setup.Tools[0].Checks = []ToolCheck{{Arguments: []string{"-version"}}}
+	setup.Tools[0].Source = "download"
+	if err := setup.Validate(); err == nil {
+		t.Fatal("expected unsupported tool source to fail validation")
 	}
 }
 
