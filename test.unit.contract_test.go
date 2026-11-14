@@ -115,3 +115,13 @@ func TestHelloResponseRejectsInvalidSetup(t *testing.T) {
 		t.Fatal("expected invalid setup to fail hello validation")
 	}
 }
+
+func TestDependencySetupIsValid(t *testing.T) {
+	setup := DependencySetup("Media")
+	if setup.Mode != SetupDependency {
+		t.Fatalf("mode = %q", setup.Mode)
+	}
+	if err := setup.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

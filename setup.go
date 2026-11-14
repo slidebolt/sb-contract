@@ -11,6 +11,7 @@ type SetupMode string
 const (
 	SetupRequired    SetupMode = "required"
 	SetupSelectable  SetupMode = "selectable"
+	SetupDependency  SetupMode = "dependency"
 	SetupDevelopment SetupMode = "development"
 )
 
@@ -102,13 +103,19 @@ func DevelopmentSetup(category string) *SetupDefinition {
 	return &SetupDefinition{Mode: SetupDevelopment, Category: category}
 }
 
+// DependencySetup describes a hidden component that is installed only when a
+// selected or required component depends on it.
+func DependencySetup(category string, fields ...SetupField) *SetupDefinition {
+	return &SetupDefinition{Mode: SetupDependency, Category: category, Fields: fields}
+}
+
 var environmentName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
 func (s *SetupDefinition) Validate() error {
 	if s == nil {
 		return nil
 	}
-	if s.Mode != SetupRequired && s.Mode != SetupSelectable && s.Mode != SetupDevelopment {
+	if s.Mode != SetupRequired && s.Mode != SetupSelectable && s.Mode != SetupDependency && s.Mode != SetupDevelopment {
 		return fmt.Errorf("invalid mode %q", s.Mode)
 	}
 	if s.Category == "" {
