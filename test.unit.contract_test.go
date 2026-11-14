@@ -84,6 +84,7 @@ func TestSetupDefinitionValidate(t *testing.T) {
 	)
 	setup.Constraints = []SetupConstraint{{Kind: "all_or_none", Fields: []string{"url", "password"}}}
 	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Environment: "FFMPEG_PATH", Required: true}}
+	setup.Fields = append(setup.Fields, SetupField{Key: "port", Environment: "PORT", Name: "Port", Control: SetupText, Generate: "free_port", Advanced: true})
 	if err := setup.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}

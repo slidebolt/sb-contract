@@ -143,7 +143,7 @@ func (s *SetupDefinition) Validate() error {
 			return fmt.Errorf("field %q has invalid export %q", field.Key, field.Export)
 		}
 		switch field.Generate {
-		case "", "uuid", "secret", "local_mac":
+		case "", "uuid", "secret", "local_mac", "free_port":
 		default:
 			return fmt.Errorf("field %q has invalid generator %q", field.Key, field.Generate)
 		}
