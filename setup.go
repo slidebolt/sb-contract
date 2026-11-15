@@ -83,12 +83,43 @@ type ToolRequirement struct {
 	Checks      []ToolCheck `json:"checks,omitempty"`
 }
 
+type ExternalResourceKind string
+
+const (
+	ExternalResourceService ExternalResourceKind = "service"
+	ExternalResourceDevice  ExternalResourceKind = "device"
+)
+
+type ResourceActivationMode string
+
+const (
+	ResourceActivationAlways     ResourceActivationMode = "always"
+	ResourceActivationConfigured ResourceActivationMode = "configured"
+)
+
+type ResourceActivation struct {
+	Mode   ResourceActivationMode `json:"mode"`
+	Fields []string               `json:"fields,omitempty"`
+}
+
+// ExternalResourceDefinition declares a non-SlideBolt service or device whose
+// protocol and health checks are owned by the declaring component.
+type ExternalResourceDefinition struct {
+	ID          string               `json:"id"`
+	Kind        ExternalResourceKind `json:"kind"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Fields      []string             `json:"fields,omitempty"`
+	Activation  ResourceActivation   `json:"activation"`
+}
+
 type SetupDefinition struct {
-	Mode        SetupMode         `json:"mode"`
-	Category    string            `json:"category"`
-	Fields      []SetupField      `json:"fields,omitempty"`
-	Constraints []SetupConstraint `json:"constraints,omitempty"`
-	Tools       []ToolRequirement `json:"tools,omitempty"`
+	Mode        SetupMode                    `json:"mode"`
+	Category    string                       `json:"category"`
+	Fields      []SetupField                 `json:"fields,omitempty"`
+	Constraints []SetupConstraint            `json:"constraints,omitempty"`
+	Tools       []ToolRequirement            `json:"tools,omitempty"`
+	Resources   []ExternalResourceDefinition `json:"resources,omitempty"`
 }
 
 func RequiredSetup(category string, fields ...SetupField) *SetupDefinition {
@@ -110,6 +141,7 @@ func DependencySetup(category string, fields ...SetupField) *SetupDefinition {
 }
 
 var environmentName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+var externalResourceID = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 func (s *SetupDefinition) Validate() error {
 	if s == nil {
@@ -226,6 +258,46 @@ func (s *SetupDefinition) Validate() error {
 					return fmt.Errorf("tool %q check %d has an empty output match", tool.ID, i)
 				}
 			}
+		}
+	}
+	resources := map[string]struct{}{}
+	for _, resource := range s.Resources {
+		if !externalResourceID.MatchString(resource.ID) || resource.Name == "" || resource.Description == "" {
+			return fmt.Errorf("invalid external resource %q", resource.ID)
+		}
+		if _, exists := resources[resource.ID]; exists {
+			return fmt.Errorf("duplicate external resource %q", resource.ID)
+		}
+		resources[resource.ID] = struct{}{}
+		if resource.Kind != ExternalResourceService && resource.Kind != ExternalResourceDevice {
+			return fmt.Errorf("external resource %q has invalid kind %q", resource.ID, resource.Kind)
+		}
+		resourceFields := map[string]struct{}{}
+		for _, key := range resource.Fields {
+			if _, exists := fields[key]; !exists {
+				return fmt.Errorf("external resource %q references unknown field %q", resource.ID, key)
+			}
+			if _, exists := resourceFields[key]; exists {
+				return fmt.Errorf("external resource %q repeats field %q", resource.ID, key)
+			}
+			resourceFields[key] = struct{}{}
+		}
+		switch resource.Activation.Mode {
+		case ResourceActivationAlways:
+			if len(resource.Activation.Fields) != 0 {
+				return fmt.Errorf("always-active external resource %q cannot have activation fields", resource.ID)
+			}
+		case ResourceActivationConfigured:
+			if len(resource.Activation.Fields) == 0 {
+				return fmt.Errorf("configured external resource %q requires activation fields", resource.ID)
+			}
+			for _, key := range resource.Activation.Fields {
+				if _, exists := resourceFields[key]; !exists {
+					return fmt.Errorf("external resource %q activation references undeclared field %q", resource.ID, key)
+				}
+			}
+		default:
+			return fmt.Errorf("external resource %q has invalid activation mode %q", resource.ID, resource.Activation.Mode)
 		}
 	}
 	return nil

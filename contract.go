@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 )
 
 // ContractVersion is the current protocol version.
@@ -25,10 +26,34 @@ const (
 
 // Runtime message types (binary → manager, over stdout).
 const (
-	RuntimeReady = "ready"
-	RuntimeError = "error"
-	RuntimeLog   = "log"
+	RuntimeReady          = "ready"
+	RuntimeError          = "error"
+	RuntimeLog            = "log"
+	RuntimeResourceStatus = "resource_status"
 )
+
+type ResourceState string
+
+const (
+	ResourceReady    ResourceState = "ready"
+	ResourceDegraded ResourceState = "degraded"
+	ResourceDisabled ResourceState = "disabled"
+)
+
+type ResourceError struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+}
+
+// ResourceStatus is emitted by a component for an external resource declared
+// in its setup definition. Names and descriptions remain manifest-owned.
+type ResourceStatus struct {
+	ID        string         `json:"id"`
+	State     ResourceState  `json:"state"`
+	CheckedAt time.Time      `json:"checkedAt"`
+	Error     *ResourceError `json:"error,omitempty"`
+}
 
 // HelloResponse is the JSON a binary prints to stdout on `<bin> hello`.
 type HelloResponse struct {

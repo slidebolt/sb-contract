@@ -84,6 +84,10 @@ func TestSetupDefinitionValidate(t *testing.T) {
 	)
 	setup.Constraints = []SetupConstraint{{Kind: "all_or_none", Fields: []string{"url", "password"}}}
 	setup.Tools = []ToolRequirement{{ID: "ffmpeg", Name: "FFmpeg", Source: ToolSourceSystem, Kind: ToolKindExecutable, Environment: "FFMPEG_PATH", Required: true, Checks: []ToolCheck{{Arguments: []string{"-version"}, Contains: []string{"ffmpeg version"}}}}}
+	setup.Resources = []ExternalResourceDefinition{{
+		ID: "media-server", Kind: ExternalResourceService, Name: "Media server", Description: "Provides media inventory.",
+		Fields: []string{"url", "password"}, Activation: ResourceActivation{Mode: ResourceActivationAlways},
+	}}
 	setup.Fields = append(setup.Fields, SetupField{Key: "port", Environment: "PORT", Name: "Port", Control: SetupText, Generate: "free_port", Advanced: true})
 	if err := setup.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
@@ -93,6 +97,44 @@ func TestSetupDefinitionValidate(t *testing.T) {
 	bad.Fields = append(append([]SetupField(nil), setup.Fields...), SetupField{Key: "token", Name: "Token", Control: SetupSecret})
 	if err := bad.Validate(); err == nil {
 		t.Fatal("expected an unmarked secret to fail validation")
+	}
+}
+
+func TestSetupDefinitionValidatesExternalResources(t *testing.T) {
+	setup := SelectableSetup("Cameras",
+		SetupField{Key: "url", Environment: "CAMERA_URL", Name: "URL", Control: SetupText},
+		SetupField{Key: "mqtt_host", Environment: "MQTT_HOST", Name: "MQTT host", Control: SetupText},
+	)
+	setup.Resources = []ExternalResourceDefinition{
+		{ID: "camera-api", Kind: ExternalResourceService, Name: "Camera API", Description: "Provides camera state.", Fields: []string{"url"}, Activation: ResourceActivation{Mode: ResourceActivationAlways}},
+		{ID: "camera-mqtt", Kind: ExternalResourceService, Name: "Camera MQTT", Description: "Provides events.", Fields: []string{"mqtt_host"}, Activation: ResourceActivation{Mode: ResourceActivationConfigured, Fields: []string{"mqtt_host"}}},
+	}
+	if err := setup.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*SetupDefinition)
+	}{
+		{"duplicate id", func(s *SetupDefinition) { s.Resources[1].ID = s.Resources[0].ID }},
+		{"unknown field", func(s *SetupDefinition) { s.Resources[0].Fields = []string{"missing"} }},
+		{"configured without fields", func(s *SetupDefinition) { s.Resources[1].Activation.Fields = nil }},
+		{"activation outside resource", func(s *SetupDefinition) { s.Resources[1].Activation.Fields = []string{"url"} }},
+		{"invalid kind", func(s *SetupDefinition) { s.Resources[0].Kind = "database" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			copy := *setup
+			copy.Resources = append([]ExternalResourceDefinition(nil), setup.Resources...)
+			copy.Resources[0].Fields = append([]string(nil), setup.Resources[0].Fields...)
+			copy.Resources[1].Fields = append([]string(nil), setup.Resources[1].Fields...)
+			copy.Resources[1].Activation.Fields = append([]string(nil), setup.Resources[1].Activation.Fields...)
+			test.mutate(&copy)
+			if err := copy.Validate(); err == nil {
+				t.Fatal("Validate() accepted invalid external resource")
+			}
+		})
 	}
 }
 
