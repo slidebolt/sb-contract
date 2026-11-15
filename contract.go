@@ -73,9 +73,28 @@ type PluginDefinitions struct {
 	Description   string                  `json:"description"`
 	DeviceClasses []DeviceClassDefinition `json:"deviceClasses,omitempty"`
 	EntityTypes   []string                `json:"entityTypes,omitempty"`
+	Collections   []CollectionDefinition  `json:"collections,omitempty"`
 	Commands      []CommandDefinition     `json:"commands,omitempty"`
 	Extensions    []ExtensionDefinition   `json:"extensions,omitempty"`
 }
+
+// CollectionDefinition declares how a plugin publishes a provider-owned set.
+// An authoritative snapshot means that, after a successful fetch, entities
+// absent from the new snapshot are no longer present at the provider.
+type CollectionDefinition struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	EntityTypes []string `json:"entityTypes"`
+	Mode        string   `json:"mode"`
+	OnMissing   string   `json:"onMissing"`
+}
+
+const (
+	CollectionAuthoritativeSnapshot = "authoritative_snapshot"
+	CollectionMissingDelete         = "delete"
+	CollectionMissingRetain         = "retain"
+)
 
 type DeviceClassDefinition struct {
 	Class       string   `json:"class"`
@@ -149,6 +168,27 @@ func (h *HelloResponse) Validate() error {
 			var schema any
 			if err := json.Unmarshal(command.PayloadSchema, &schema); err != nil {
 				return fmt.Errorf("hello: command %q schema: %w", command.Action, err)
+			}
+		}
+		collectionIDs := map[string]struct{}{}
+		for _, collection := range h.Definitions.Collections {
+			if collection.ID == "" || collection.Name == "" || collection.Description == "" || len(collection.EntityTypes) == 0 {
+				return fmt.Errorf("hello: incomplete collection definition %q", collection.ID)
+			}
+			if _, exists := collectionIDs[collection.ID]; exists {
+				return fmt.Errorf("hello: duplicate collection %q", collection.ID)
+			}
+			collectionIDs[collection.ID] = struct{}{}
+			if collection.Mode != CollectionAuthoritativeSnapshot {
+				return fmt.Errorf("hello: collection %q has unsupported mode %q", collection.ID, collection.Mode)
+			}
+			if collection.OnMissing != CollectionMissingDelete && collection.OnMissing != CollectionMissingRetain {
+				return fmt.Errorf("hello: collection %q has unsupported onMissing %q", collection.ID, collection.OnMissing)
+			}
+			for _, entityType := range collection.EntityTypes {
+				if _, exists := seen[entityType]; !exists {
+					return fmt.Errorf("hello: collection %q references undeclared entity type %q", collection.ID, entityType)
+				}
 			}
 		}
 	}

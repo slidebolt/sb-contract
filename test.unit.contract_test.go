@@ -57,6 +57,22 @@ func TestHelloResponseValidate(t *testing.T) {
 	}
 }
 
+func TestHelloResponseValidatesAuthoritativeCollections(t *testing.T) {
+	definitions := DescribePlugin("Media", "Publishes media activity.", "media_session")
+	definitions.Collections = []CollectionDefinition{{
+		ID: "sessions", Name: "Sessions", Description: "Currently active playback sessions.",
+		EntityTypes: []string{"media_session"}, Mode: CollectionAuthoritativeSnapshot, OnMissing: CollectionMissingDelete,
+	}}
+	response := HelloResponse{ID: "plugin-media", Kind: KindPlugin, ContractVersion: ContractVersion, Definitions: definitions}
+	if err := response.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	definitions.Collections[0].EntityTypes = []string{"unknown"}
+	if err := response.Validate(); err == nil {
+		t.Fatal("Validate() accepted a collection with an undeclared entity type")
+	}
+}
+
 func TestWriteAndReadJSON(t *testing.T) {
 	var buf bytes.Buffer
 
