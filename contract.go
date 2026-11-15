@@ -97,18 +97,20 @@ const (
 )
 
 type DeviceClassDefinition struct {
-	Class       string   `json:"class"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	EntityTypes []string `json:"entityTypes,omitempty"`
+	Class         string   `json:"class"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	SecurityGroup string   `json:"securityGroup,omitempty"`
+	EntityTypes   []string `json:"entityTypes,omitempty"`
 }
 
 type ExtensionDefinition struct {
-	Type        string              `json:"type"`
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	StateSchema json.RawMessage     `json:"stateSchema"`
-	Commands    []CommandDefinition `json:"commands,omitempty"`
+	Type          string              `json:"type"`
+	Name          string              `json:"name"`
+	Description   string              `json:"description"`
+	SecurityGroup string              `json:"securityGroup,omitempty"`
+	StateSchema   json.RawMessage     `json:"stateSchema"`
+	Commands      []CommandDefinition `json:"commands,omitempty"`
 }
 
 type CommandDefinition struct {
