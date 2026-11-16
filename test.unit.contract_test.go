@@ -73,6 +73,20 @@ func TestHelloResponseValidatesAuthoritativeCollections(t *testing.T) {
 	}
 }
 
+func TestHelloResponseValidatesSecurityDeclarations(t *testing.T) {
+	definitions := DescribePlugin("Media", "Publishes media devices.", "media_player")
+	definitions.DeviceClasses = []DeviceClassDefinition{{Class: "media_player", Name: "Media player", Description: "A playback target.", SecurityGroups: []string{"media"}, EntityTypes: []string{"media_player"}}}
+	definitions.Extensions = []ExtensionDefinition{{Type: "provider_event", Name: "Provider event", Description: "A provider-owned event.", SecurityGroup: "private", StateSchema: json.RawMessage(`{"type":"object"}`)}}
+	response := HelloResponse{ID: "plugin-media", Kind: KindPlugin, ContractVersion: ContractVersion, Definitions: definitions}
+	if err := response.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	definitions.DeviceClasses[0].SecurityGroups = []string{"media", "media"}
+	if err := response.Validate(); err == nil {
+		t.Fatal("Validate() accepted duplicate device security groups")
+	}
+}
+
 func TestWriteAndReadJSON(t *testing.T) {
 	var buf bytes.Buffer
 

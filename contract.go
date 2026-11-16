@@ -96,12 +96,23 @@ const (
 	CollectionMissingRetain         = "retain"
 )
 
+var resourceSecurityGroups = map[string]struct{}{
+	"media": {}, "home": {}, "private": {}, "security": {}, "system": {},
+}
+
+// ValidResourceSecurityGroup reports whether a value is part of the shared
+// resource-group wire contract. Token-only wildcards are intentionally absent.
+func ValidResourceSecurityGroup(group string) bool {
+	_, ok := resourceSecurityGroups[group]
+	return ok
+}
+
 type DeviceClassDefinition struct {
-	Class         string   `json:"class"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	SecurityGroup string   `json:"securityGroup,omitempty"`
-	EntityTypes   []string `json:"entityTypes,omitempty"`
+	Class          string   `json:"class"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	SecurityGroups []string `json:"securityGroups,omitempty"`
+	EntityTypes    []string `json:"entityTypes,omitempty"`
 }
 
 type ExtensionDefinition struct {
@@ -191,6 +202,48 @@ func (h *HelloResponse) Validate() error {
 				if _, exists := seen[entityType]; !exists {
 					return fmt.Errorf("hello: collection %q references undeclared entity type %q", collection.ID, entityType)
 				}
+			}
+		}
+		classIDs := map[string]struct{}{}
+		for _, class := range h.Definitions.DeviceClasses {
+			if class.Class == "" || class.Name == "" || class.Description == "" {
+				return fmt.Errorf("hello: incomplete device class %q", class.Class)
+			}
+			if _, exists := classIDs[class.Class]; exists {
+				return fmt.Errorf("hello: duplicate device class %q", class.Class)
+			}
+			classIDs[class.Class] = struct{}{}
+			groups := map[string]struct{}{}
+			for _, group := range class.SecurityGroups {
+				if !ValidResourceSecurityGroup(group) {
+					return fmt.Errorf("hello: device class %q has invalid security group %q", class.Class, group)
+				}
+				if _, exists := groups[group]; exists {
+					return fmt.Errorf("hello: device class %q has duplicate security group %q", class.Class, group)
+				}
+				groups[group] = struct{}{}
+			}
+			for _, entityType := range class.EntityTypes {
+				if _, exists := seen[entityType]; !exists {
+					return fmt.Errorf("hello: device class %q references undeclared entity type %q", class.Class, entityType)
+				}
+			}
+		}
+		extensionTypes := map[string]struct{}{}
+		for _, extension := range h.Definitions.Extensions {
+			if extension.Type == "" || extension.Name == "" || extension.Description == "" || extension.SecurityGroup == "" || len(extension.StateSchema) == 0 {
+				return fmt.Errorf("hello: incomplete extension definition %q", extension.Type)
+			}
+			if _, exists := extensionTypes[extension.Type]; exists {
+				return fmt.Errorf("hello: duplicate extension %q", extension.Type)
+			}
+			if !ValidResourceSecurityGroup(extension.SecurityGroup) {
+				return fmt.Errorf("hello: extension %q has invalid security group %q", extension.Type, extension.SecurityGroup)
+			}
+			extensionTypes[extension.Type] = struct{}{}
+			var schema any
+			if err := json.Unmarshal(extension.StateSchema, &schema); err != nil {
+				return fmt.Errorf("hello: extension %q schema: %w", extension.Type, err)
 			}
 		}
 	}
